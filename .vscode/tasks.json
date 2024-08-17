@@ -1,0 +1,28 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "swift",
+			"args": [
+				"run",
+				// "--product",
+				"slox",
+				// "-Xswiftc",
+				// "-diagnostic-style=llvm"
+				"scripts/hello.lox"
+			],
+			"env": {},
+			"cwd": "/Users/michaelzalla/Documents/github.com/MichaelZalla/slox",
+			"disableTaskQueue": true,
+			"dontTriggerTestDiscovery": true,
+			"showBuildStatus": "swiftStatus",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [],
+			"label": "swift: Run slox scripts/hello.lox",
+			"detail": "swift run slox scripts/hello.lox"
+		}
+	]
+}
