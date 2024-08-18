@@ -1,7 +1,10 @@
 import Foundation
 
 class Lox {
+	static let interpreter = Interpreter()
+
 	static var hadError = false
+	static var hadRuntimeError = false
 
 	// @TODO Add ArgumentParser as a package dependency.
 	// See: https://github.com/apple/swift-argument-parser
@@ -18,7 +21,7 @@ class Lox {
 
 			try Lox.runFile(path: scriptFilePath)
 		} else {
-			Lox.runPrompt()
+			try Lox.runPrompt()
 		}
 	}
 
@@ -38,17 +41,19 @@ class Lox {
 			pathURL.append(component: component)
 		}
 
-		// pathURL.scheme = "file:/"
-
 		// print("URL: \(pathURL.absoluteString)")
 
 		do {
 			let scriptContents = try String(contentsOf: pathURL)
 
-			Lox.run(source: scriptContents)
+			try Lox.run(source: scriptContents)
 
 			if Self.hadError {
 				exit(65)
+			}
+
+			if Self.hadRuntimeError {
+				exit(70)
 			}
 		} catch {
 			print("Failed to read script contents from file: \(pathURL.absoluteString).")
@@ -57,7 +62,7 @@ class Lox {
 		}
 	}
 
-	public static func runPrompt() {
+	public static func runPrompt() throws {
 		while true {
 			print("> ", terminator: "")
 
@@ -67,13 +72,13 @@ class Lox {
 				break
 			}
 
-			Lox.run(source: lineInput)
+			try Lox.run(source: lineInput)
 
 			Self.hadError = false
 		}
 	}
 
-	private static func run(source: String) {
+	private static func run(source: String) throws {
 		var scanner = Scanner(source: source)
 
 		let tokens = scanner.scanTokens()
@@ -86,7 +91,13 @@ class Lox {
 			return
 		}
 
-		print(expr?.parenthesize() ?? "n/a")
+		guard let expr = expr else {
+			return
+		}
+
+		print(expr.parenthesize())
+
+		try interpreter.interpret(expr: expr)
 	}
 
 	static func error(line: Int, message: String) {
@@ -99,6 +110,18 @@ class Lox {
 		} else {
 			Lox.report(line: token.line, at: " at '\(token.lexeme)'", message: message)
 		}
+	}
+
+	static func runtimeError(_ error: RuntimeError) {
+		switch error {
+		case .invalidOperands(let token, let message):
+			print(message + "\n[line \(token.line)]")
+			break
+		case .unexpectedType(let message):
+			print(message)
+		}
+
+		hadRuntimeError = true
 	}
 
 	private static func report(line: Int, at: String, message: String) {
