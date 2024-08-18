@@ -3,7 +3,11 @@
   "tasks": [
     {
       "type": "swift",
-      "args": ["run", "slox", "scripts/hello.lox"],
+      "args": [
+        "run",
+        "slox"
+        // "scripts/hello.lox"
+      ],
       "env": {},
       "cwd": "${workspaceFolder}",
       "disableTaskQueue": true,
@@ -14,8 +18,8 @@
         "isDefault": true
       },
       "problemMatcher": [],
-      "label": "swift: run slox scripts/hello.lox",
-      "detail": "swift run slox scripts/hello.lox"
+      "label": "swift: run slox",
+      "detail": "swift run slox"
     },
     {
       "type": "swift",

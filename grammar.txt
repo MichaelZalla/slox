@@ -1,15 +1,32 @@
-expression 		->	literal
-					| unary
-					| binary
-					| grouping ;
+# Updated grammer avoids ambiguity by enforcing precedence rules, by design.
+# Each rule in the grammer below creates a new level of precedence—with earlier
+# rules taking a lower leve of precedence compared to later rules. The `primary`
+# rule (bottom) is the rule with highest precedence.
 
-literal 		-> 	NUMBER | STRING | "true" | "false" | "nil";
+# Non-recursive.
+expression 		-> equality ;
 
-grouping  		-> 	"(" expression ")" ;
+# Left-associative, non-recursive.
+equality 		-> comparison ( ("==" | "!=") comparison )* ;
 
-unary 			-> 	( "-" | "!" ) expression ;
+# Left-associative, non-recursive.
+comparison 		-> term ( (">" | ">=" | "<" | "<=") term )* ;
 
-operator 		-> 	"==" | "!=" | "<" | "<=" | ">" | ">="
-					| "+" | "-" | "* " | "/" ;
+# Left-associative, non-recursive.
+term 			-> factor ( ("-" | "+") factor )* ;
 
-binary 			-> 	expression operator expression ;
+# Left-associative, left-recursive; poses problems for some parsing techniques.
+#
+# factor 			-> factor ("/" | "*") unary
+#			           | unary ;
+
+# Left-associative, non-recursive.
+factor 			-> unary ( ("/" | "*") unary )* ;
+
+# Right-associative, right-recursive.
+unary 			-> ("!" | "-") unary
+				   | primary;
+
+# Non-recursive (for literals and parenthesized expressions).
+primary 		-> NUMBER | STRING | "true" | "false" | "nil"
+				   | "(" expression ")" ;

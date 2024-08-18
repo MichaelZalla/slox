@@ -59,7 +59,7 @@ class Lox {
 
 	public static func runPrompt() {
 		while true {
-			print("> ")
+			print("> ", terminator: "")
 
 			let lineInput = readLine()
 
@@ -78,19 +78,32 @@ class Lox {
 
 		let tokens = scanner.scanTokens()
 
-		for token in tokens {
-			print(token)
+		var parser = Parser(tokens: tokens)
+
+		let expr = parser.parse()
+
+		guard !hadError else {
+			return
 		}
+
+		print(expr?.parenthesize() ?? "n/a")
 	}
 
 	static func error(line: Int, message: String) {
 		Lox.report(line: line, at: "", message: message)
+	}
 
-		Self.hadError = true
+	static func error(token: Token, message: String) {
+		if token.type == .EOF {
+			Lox.report(line: token.line, at: " at end", message: message)
+		} else {
+			Lox.report(line: token.line, at: " at '\(token.lexeme)'", message: message)
+		}
 	}
 
 	private static func report(line: Int, at: String, message: String) {
 		print("[line \(line)] Error\(at): \(message)")
-		// Self.hadError = true
+
+		Self.hadError = true
 	}
 }

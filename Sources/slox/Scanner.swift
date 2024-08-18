@@ -157,7 +157,7 @@ struct Scanner {
 		addToken(type: type, literal: nil)
 	}
 
-	private mutating func addToken(type: TokenType, literal: Any?) {
+	private mutating func addToken(type: TokenType, literal: CustomStringConvertible?) {
 		let lexeme = String(source[start..<current])
 
 		tokens.append(
