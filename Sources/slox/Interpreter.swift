@@ -1,6 +1,9 @@
 typealias LoxValue = Any?
 
 enum RuntimeError: Error {
+	// An error message.
+	case invalidStatement(String)
+
 	// The token associated with the invalid operand, and an error message.
 	case invalidOperands(Token, String)
 
@@ -36,8 +39,16 @@ struct Interpreter {
 			try visitExpressionStatement(expr)
 
 			return
+		case .branchingIf(let condition, let thenBlock, let elseBlock):
+			try visitIfStatement(condition: condition, thenBlock: thenBlock, elseBlock: elseBlock)
+
+			return
 		case .print(let expr):
 			try visitPrintStatement(expr)
+
+			return
+		case .branchingWhile(let condition, let body):
+			try visitWhileStatement(condition: condition, body: body)
 
 			return
 		case .block(let statements):
@@ -87,6 +98,27 @@ struct Interpreter {
 		try evaluate(expr)
 	}
 
+	private mutating func visitIfStatement(
+		condition: Expression,
+		thenBlock: Statement,
+		elseBlock: Statement?) throws
+	{
+		if isTruthy(try evaluate(condition)) {
+			try execute(thenBlock)
+		} else if let elseBlock = elseBlock {
+			try execute(elseBlock)
+		}
+	}
+
+	private mutating func visitWhileStatement(
+		condition: Expression,
+		body: Statement) throws
+	{
+		while isTruthy(try evaluate(condition)) {
+			try execute(body)
+		}
+	}
+
 	private mutating func visitPrintStatement(_ expr: Expression) throws {
 		let value = try evaluate(expr)
 
@@ -125,6 +157,27 @@ struct Interpreter {
 
 		case .grouping(let expr):
 			return try self.visitExpression(expr)
+
+		case .logical(let lhs, let op, let rhs):
+			// In Lox, we allow logical operands to be any type; that is,
+			// they need not necessarily be stored Booleans:
+			//
+			//   `print "hi" or 2` 		// prints "hi"
+			//   `print nil or 1` 		// prints 1
+			//
+			let lhs = try evaluate(lhs)
+
+			// Here, we short-circuit any chained logic, if we can; note that
+			//
+			if case .OR = op.type {
+				// No need to recurse right if `lhs` is already truthy.
+				if isTruthy(lhs) { return lhs }
+			} else {
+				// No need to recurse right if `lhs` is already falsey.
+				if !isTruthy(lhs) { return lhs }
+			}
+
+			return try evaluate(rhs)
 
 		case .unary(let op, let rhs):
 			let rhs = try self.visitExpression(rhs)

@@ -107,6 +107,12 @@ class Lox {
 				case .expression(let expr):
 					print("[Debug] Expression: \(expr.parenthesize())")
 					break
+				case .branchingIf(let condition, _, _):
+					print("[Debug] If: \(condition.parenthesize())")
+					break
+				case .branchingWhile(let condition, _):
+					print("[Debug] While: \(condition.parenthesize())")
+					break
 				case .print(let expr):
 					print("[Debug] Print: \(expr.parenthesize())")
 					break
@@ -133,6 +139,9 @@ class Lox {
 
 	static func runtimeError(_ error: RuntimeError) {
 		switch error {
+		case .invalidStatement(let message):
+			print(message)
+			break
 		case .invalidOperands(let token, let message):
 			print(message + "\n[line \(token.line)]")
 			break

@@ -55,8 +55,20 @@ struct Parser {
 	}
 
 	private mutating func statement() throws -> Statement {
+		if match(.FOR) {
+			return try forStatement()
+		}
+
+		if match(.IF) {
+			return try ifStatement()
+		}
+
 		if match(.PRINT) {
 			return try printStatement()
+		}
+
+		if match(.WHILE) {
+			return try whileStatement()
 		}
 
 		if match(.leftBrace) {
@@ -80,6 +92,95 @@ struct Parser {
 		try consume(type: .rightBrace, message: "Expect '}' after block.")
 
 		return statements
+	}
+
+	private mutating func forStatement() throws -> Statement {
+		try consume(type: .leftParen, message: "Expect '(' after 'for' keyword.")
+
+		let initializer: Statement?
+
+		if match(.semicolon) {
+			initializer = nil
+		} else if match(.VAR) {
+			// Will consume the trailing semicolon after the declaration.
+			initializer = try variableDeclaration()
+		} else {
+			// Will consume the trailing semicolon after the expression.
+			initializer = try expressionStatement()
+		}
+
+		var condition: Expression
+
+		// If the semicolon-terminated initializer isn't immediately followed
+		// by another semicolon, then it must be followed by the condition.
+		if !check(.semicolon) {
+			condition = try expression()
+		} else {
+			condition = .literal(true)
+		}
+
+		try consume(type: .semicolon, message: "Expect ';' after loop condition.")
+
+		var increment: Expression? = nil
+
+		if !match(.rightParen) {
+			increment = try expression()
+		}
+
+		try consume(type: .rightParen, message: "Expect ')' after 'for' clauses.")
+
+		var body = try statement()
+
+		// Extends `body` to include the increment clause, ran after each loop.
+		if let increment = increment {
+			body = Statement.block([
+				body,
+				.expression(increment)
+			])
+		}
+
+		// Make use of our existing `while`-loop support (desugaring `for(…))`).
+		body = .branchingWhile(condition, body)
+
+		if let initializer = initializer {
+			body = Statement.block([
+				initializer,
+				body,
+			])
+		}
+
+		return body
+	}
+
+	private mutating func ifStatement() throws -> Statement {
+		try consume(type: .leftParen, message: "Expect '(' after 'if' keyword.")
+
+		let condition = try expression()
+
+		try consume(type: .rightParen, message: "Expect ')' after 'if' condition.")
+
+		let thenBranch = try statement()
+
+		// Note: Here, we eagerly consume any subsequent `else` clause before
+		// returning—meaning that we avoid the "dangling else" problem by
+		// associating an `else` clause with its closest preceeding `if`.
+		let elseBranch = match(.ELSE) ?
+			try statement() :
+			nil
+
+		return Statement.branchingIf(condition, thenBranch, elseBranch)
+	}
+
+	private mutating func whileStatement() throws -> Statement {
+		try consume(type: .leftParen, message: "Expect '(' after 'while' keyword.")
+
+		let condition = try expression()
+
+		try consume(type: .rightParen, message: "Expect ')' after 'while' condition.")
+
+		let body = try statement()
+
+		return Statement.branchingWhile(condition, body)
 	}
 
 	private mutating func printStatement() throws -> Statement {
@@ -142,7 +243,7 @@ struct Parser {
 		// 				  | equality ;
 		//
 
-		let expr = try equality()
+		let expr = try logicalOr()
 
 		if match(.equal) {
 			let equals = previous()
@@ -159,6 +260,33 @@ struct Parser {
 		}
 
 		return expr
+	}
+
+	private mutating func logicalOr() throws -> Expression {
+		var lhs = try logicalAnd()
+
+		while match(.OR) {
+			let op = previous()
+			let rhs = try logicalAnd()
+
+			lhs = Expression.logical(lhs, op, rhs)
+
+		}
+
+		return lhs
+	}
+
+	private mutating func logicalAnd() throws -> Expression {
+		var lhs = try equality()
+
+		while match(.AND) {
+			let op = previous()
+			let rhs = try equality()
+
+			lhs = Expression.logical(lhs, op, rhs)
+		}
+
+		return lhs
 	}
 
 	/// Consumes the next equality(s) in the token stream.

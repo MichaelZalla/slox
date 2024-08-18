@@ -7,6 +7,10 @@ enum Expression {
 	// grouping -> "(" expression ")" ;
 	case grouping(Expression)
 
+	// logic_or -> logic_and ( "or" logic_and )* ;
+	// logic_and -> equality ( "and" equality )* ;
+	case logical(Expression, Token, Expression)
+
 	// unary -> ( "-" | "!" ) expression ;
 	case unary(Token, Expression)
 
@@ -30,6 +34,9 @@ enum Expression {
 
 			case .grouping(let expr):
 				return Self.parenthesized(name: "group", exprs: expr)
+
+			case .logical(let lhs, let op, let rhs):
+				return Self.parenthesized(name: op.lexeme, exprs: lhs, rhs)
 
 			case .unary(let op, let expr):
 				return Self.parenthesized(name: op.lexeme, exprs: expr)
