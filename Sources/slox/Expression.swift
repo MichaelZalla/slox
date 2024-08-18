@@ -13,6 +13,12 @@ enum Expression {
 	// binary -> expression operator expression ;
 	case binary(Expression, Token, Expression)
 
+	// assignment -> IDENTIFIER "=" assignment ;
+	case assignment(Token, Expression)
+
+	// IDENTIFIER
+	case variable(Token)
+
 	func parenthesize() -> String {
 		switch self {
 			case .literal(let value):
@@ -30,6 +36,12 @@ enum Expression {
 
 			case .binary(let left, let op, let right):
 				return Self.parenthesized(name: op.lexeme, exprs: left, right)
+
+			case .assignment(let identifier, let newValue):
+				return Self.parenthesized(name: "\(identifier.lexeme) =", exprs: newValue)
+
+			case .variable(let token):
+				return Self.parenthesized(name: token.lexeme)
 		}
 	}
 
@@ -46,9 +58,3 @@ enum Expression {
 		return result
 	}
 }
-
-// let expr = Expression.binary(
-// 	.literal,
-// 	Token(type: .bangEqual, lexeme: "!=", literal: nil, line: 0),
-// 	.literal
-// )

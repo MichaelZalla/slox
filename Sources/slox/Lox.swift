@@ -1,7 +1,7 @@
 import Foundation
 
 class Lox {
-	static let interpreter = Interpreter()
+	static var interpreter = Interpreter()
 
 	static var hadError = false
 	static var hadRuntimeError = false
@@ -83,21 +83,40 @@ class Lox {
 
 		let tokens = scanner.scanTokens()
 
+		for token in tokens {
+			print("[Debug] Token: \(token)")
+		}
+
 		var parser = Parser(tokens: tokens)
 
-		let expr = parser.parse()
+		let statements = parser.parse()
 
 		guard !hadError else {
 			return
 		}
 
-		guard let expr = expr else {
+		guard let statements = statements else {
 			return
 		}
 
-		print(expr.parenthesize())
+		for statement in statements {
+			switch statement {
+				case .variableDeclaration(let token, let initialValue):
+					print("[Debug] Declaration: \(token.lexeme) = \(initialValue?.parenthesize() ?? "nil")")
+					break
+				case .expression(let expr):
+					print("[Debug] Expression: \(expr.parenthesize())")
+					break
+				case .print(let expr):
+					print("[Debug] Print: \(expr.parenthesize())")
+					break
+				case .block(let statements):
+					print("[Debug] Block (\(statements.count) statements)")
+					break
+			}
+		}
 
-		try interpreter.interpret(expr: expr)
+		try interpreter.interpret(statements)
 	}
 
 	static func error(line: Int, message: String) {
@@ -119,6 +138,10 @@ class Lox {
 			break
 		case .unexpectedType(let message):
 			print(message)
+			break
+		case .undefinedVariable(_, let message):
+			print(message)
+			break
 		}
 
 		hadRuntimeError = true

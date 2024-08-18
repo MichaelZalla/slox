@@ -1,10 +1,46 @@
+# There is no place in the Lox grammer where either a statement _or_ an
+# expression is allowed; the two syntaxes are disjoint.
+
 # Updated grammer avoids ambiguity by enforcing precedence rules, by design.
 # Each rule in the grammer below creates a new level of precedence—with earlier
 # rules taking a lower leve of precedence compared to later rules. The `primary`
 # rule (bottom) is the rule with highest precedence.
 
+program 		-> declaration* EOF ;
+
+#
+# Declaration rules.
+#
+
+declaration 	-> varDeclaration
+				   | statement ;
+
+varDeclaration  -> "var" IDENTIFIER ( "=" expression )? ";" ;
+
+#
+# Statement rules.
+#
+
+statement 		-> exprStatement
+				   | printStatement
+				   | block ;
+
+exprStatement  	-> expression ";" ;
+
+printStatement  -> "print" expression ";" ;
+
+block 			-> "{" declaration* "}"
+
+#
+# Expression rules.
+#
+
 # Non-recursive.
-expression 		-> equality ;
+expression 		-> assignment ;
+
+# Right-associative, right-recursive.
+assignment 		-> IDENTIFIER "=" assignment ;
+				   | equality ;
 
 # Left-associative, non-recursive.
 equality 		-> comparison ( ("==" | "!=") comparison )* ;
@@ -15,11 +51,6 @@ comparison 		-> term ( (">" | ">=" | "<" | "<=") term )* ;
 # Left-associative, non-recursive.
 term 			-> factor ( ("-" | "+") factor )* ;
 
-# Left-associative, left-recursive; poses problems for some parsing techniques.
-#
-# factor 			-> factor ("/" | "*") unary
-#			           | unary ;
-
 # Left-associative, non-recursive.
 factor 			-> unary ( ("/" | "*") unary )* ;
 
@@ -29,4 +60,5 @@ unary 			-> ("!" | "-") unary
 
 # Non-recursive (for literals and parenthesized expressions).
 primary 		-> NUMBER | STRING | "true" | "false" | "nil"
-				   | "(" expression ")" ;
+				   | "(" expression ")"
+				   | IDENTIFIER;

@@ -5,13 +5,97 @@ struct Parser {
 
 	var current: Int = 0
 
-	mutating func parse() -> Expression? {
+	mutating func parse() -> [Statement]? {
+		//
+		// 	# Non-recursive.
+		// 	program -> statement* EOF ;
+		//
+		var statements: [Statement] = []
+
+		while !isAtEnd() {
+			do {
+				if let statement = try declaration() {
+					statements.append(statement)
+				}
+			} catch {
+				return nil
+			}
+		}
+
+		return statements
+	}
+
+	private mutating func declaration() throws -> Statement? {
 		do {
-			return try expression()
+			if match(.VAR) {
+				return try variableDeclaration()
+			}
+
+			return try statement()
 		} catch {
-			// If a syntax error occurs, we return `nil`.
+			synchronize()
+
 			return nil
 		}
+	}
+
+	private mutating func variableDeclaration() throws -> Statement {
+		let name = try consume(type: .identifier, message: "Expect variable name.")
+
+		// An expression to evaluate, as an initial value.
+		var initializer: Expression? = nil
+
+		if match(.equal) {
+			initializer = try expression()
+		}
+
+		try consume(type: .semicolon, message: "Expect ';' after variable declaration.")
+
+		return Statement.variableDeclaration(name, initializer)
+	}
+
+	private mutating func statement() throws -> Statement {
+		if match(.PRINT) {
+			return try printStatement()
+		}
+
+		if match(.leftBrace) {
+			return try .block(block())
+		}
+
+		return try expressionStatement()
+	}
+
+	// Note: We have `block()` return `[Statement]` instead of `Statement` here,
+	// as it will allow us to re-use the method for parsing function bodies.
+	private mutating func block() throws -> [Statement] {
+		var statements: [Statement] = []
+
+		while !check(.rightBrace) && !isAtEnd() {
+			if let decl = try declaration() {
+				statements.append(decl)
+			}
+		}
+
+		try consume(type: .rightBrace, message: "Expect '}' after block.")
+
+		return statements
+	}
+
+	private mutating func printStatement() throws -> Statement {
+		let value = try expression()
+
+		try consume(type: .semicolon, message: "Expect ';' after print value.")
+
+		return Statement.print(value)
+	}
+
+	private mutating func expressionStatement() throws -> Statement {
+		let expr = try expression()
+
+		try consume(type: .semicolon, message: "Expect ';' after expression.")
+
+		return Statement.expression(expr)
 	}
 
 	/// Consumes the next expression(s) in the token stream.
@@ -19,10 +103,62 @@ struct Parser {
 	private mutating func expression() throws -> Expression {
 		//
 		// 	# Non-recursive.
-		// 	expression -> equality ;
+		// 	expression -> assignment ;
 		//
 
-		return try equality()
+		return try assignment()
+	}
+
+	/// Consumes the next assignment(s) in the token stream.
+	/// - Returns: The parsed `Expression`.
+	/// - Throws: A `ParseError`, if the l-value is not a variable.
+	/// - Note: Every valid assignment target (l-value) is also valid syntax
+	/// for a normal expression. Thus, we parse the left-hand side _as if_
+	/// it were an expression, and the resulting syntax tree becomes an
+	/// assignment target.
+	///
+	/// Example:
+	///
+	///   1. The token sequence:
+	///
+	///     a = b = c = d
+	///
+	///   will be parsed into the following expression tree:
+	///
+	///     (a = (b = (c = d)))
+	///
+	///   2. The token sequence:
+	///
+	///     a.b.c = d
+	///
+	///   will be parsed into the following expression tree:
+	///
+	///     ((a.b.c) = d)
+	///
+	private mutating func assignment() throws -> Expression {
+		//
+		// 	# Right-recursive, right-associative.
+		// 	assignment -> IDENTIFIER "=" assignment ;
+		// 				  | equality ;
+		//
+
+		let expr = try equality()
+
+		if match(.equal) {
+			let equals = previous()
+			let value = try assignment()
+
+			if case .variable(let name) = expr {
+				// Converts the r-value expression into an l-value (reference).
+				return Expression.assignment(name, value)
+			}
+
+			// Note: We report this error, but we don't throw it; the parser
+			// can recover from this easily enough without going into a panic.
+			Self.error(token: equals, message: "Invalid assignment target.")
+		}
+
+		return expr
 	}
 
 	/// Consumes the next equality(s) in the token stream.
@@ -180,6 +316,10 @@ struct Parser {
 			return .literal(previous().literal)
 		}
 
+		if match(.identifier) {
+			return .variable(previous())
+		}
+
 		if match(.leftParen) {
 			// We expect a valid expression to follow...
 			let expr = try expression()
@@ -190,7 +330,7 @@ struct Parser {
 			return .grouping(expr)
 		}
 
-		throw Self.error(token: peek(), message: "Expression expected.")
+		throw Self.error(token: peek(), message: "Expect expression.")
 	}
 
 	/// Returns whether or not the current token is of a certain type,
@@ -285,6 +425,7 @@ struct Parser {
 	/// - This function _returns_ an error instead of _throwing_ it, because we
 	/// want to let the calling function decide whether or not to unwind the
 	/// stack; not all parse errors necessitate synchronization.
+	@discardableResult
 	private static func error(token: Token, message: String) -> ParseError {
 		Lox.error(token: token, message: message)
 

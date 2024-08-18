@@ -1,16 +1,24 @@
 typealias LoxValue = Any?
 
 enum RuntimeError: Error {
+	// The token associated with the invalid operand, and an error message.
 	case invalidOperands(Token, String)
+
+	// An error message.
 	case unexpectedType(String)
+
+	// The referenced identifier (name), and an error message.
+	case undefinedVariable(String, String)
 }
 
 struct Interpreter {
-	func interpret(expr: Expression) throws {
-		do {
-			let value = try evaluate(expr)
+	var environment = Environment()
 
-			print(stringify(value))
+	mutating func interpret(_ statements: [Statement]) throws {
+		do {
+			for statement in statements {
+				try execute(statement)
+			}
 		} catch let error as RuntimeError {
 			Lox.runtimeError(error)
 		} catch {
@@ -18,8 +26,30 @@ struct Interpreter {
 		}
 	}
 
-	func evaluate(_ expr: Expression) throws -> LoxValue {
-		return try visit(expr)
+	mutating func execute(_ statement: Statement) throws {
+		switch statement {
+		case .variableDeclaration(let token, let expr):
+			try visitVariableDeclaration(token, expr)
+
+			return
+		case .expression(let expr):
+			try visitExpressionStatement(expr)
+
+			return
+		case .print(let expr):
+			try visitPrintStatement(expr)
+
+			return
+		case .block(let statements):
+			try visitBlockStatement(statements)
+
+			return
+		}
+	}
+
+	@discardableResult
+	mutating func evaluate(_ expr: Expression) throws -> LoxValue {
+		return try visitExpression(expr)
 	}
 
 	private func stringify(_ value: LoxValue) -> String {
@@ -37,15 +67,67 @@ struct Interpreter {
 			return text
 		}
 
-		return String(describing: value)
+		return String(describing: value!)
 	}
 
-	private func visit(_ expr: Expression) throws -> LoxValue {
+	private mutating func visitVariableDeclaration(
+		_ name: Token,
+		_ initializer: Expression?) throws
+	{
+		var value: LoxValue = nil
+
+		if let initializer = initializer {
+			value = try evaluate(initializer)
+		}
+
+		environment.define(name: name.lexeme, value: value)
+	}
+
+	private mutating func visitExpressionStatement(_ expr: Expression) throws {
+		try evaluate(expr)
+	}
+
+	private mutating func visitPrintStatement(_ expr: Expression) throws {
+		let value = try evaluate(expr)
+
+		print(stringify(value))
+	}
+
+	private mutating func visitBlockStatement(_ statements: [Statement]) throws {
+		try executeBlock(statements, environment: Environment(from: environment))
+	}
+
+	private mutating func executeBlock(
+		_ statements: [Statement],
+		environment: Environment) throws
+	{
+		let previousEnvironment = self.environment
+
+		defer {
+			self.environment = previousEnvironment
+		}
+
+		do {
+			self.environment = environment
+
+			for statement in statements {
+				try execute(statement)
+			}
+		} catch {
+			// Do nothing.
+		}
+	}
+
+	private mutating func visitExpression(_ expr: Expression) throws -> LoxValue {
 		switch expr {
-		case .literal(let value): return value
-		case .grouping(let expr): return try self.visit(expr)
+		case .literal(let value):
+			return value
+
+		case .grouping(let expr):
+			return try self.visitExpression(expr)
+
 		case .unary(let op, let rhs):
-			let rhs = try self.visit(rhs)
+			let rhs = try self.visitExpression(rhs)
 
 			switch op.type {
 			case .bang:
@@ -58,9 +140,10 @@ struct Interpreter {
 
 			// Unreachable.
 			return nil
+
 		case .binary(let lhs, let op, let rhs):
-			let lhs = try self.visit(lhs)
-			let rhs = try self.visit(rhs)
+			let lhs = try self.visitExpression(lhs)
+			let rhs = try self.visitExpression(rhs)
 
 			// Note that we check operand types _after_ evaluating them both.
 			switch op.type {
@@ -110,6 +193,18 @@ struct Interpreter {
 
 			// Unreachable.
 			return nil
+
+		case .assignment(let identifier, let newValue):
+			let value = try evaluate(newValue)
+
+			try environment.assign(name: identifier.lexeme, value: value)
+
+			// Note that assignments evaluate to their assigned value.
+			return value
+
+		case .variable(let identifier):
+			return try environment.get(name: identifier.lexeme)
+
 		}
 	}
 
