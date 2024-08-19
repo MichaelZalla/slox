@@ -13,8 +13,15 @@ program 		-> declaration* EOF ;
 # Declaration rules.
 #
 
-declaration 	-> varDeclaration
+declaration 	-> funcDeclaration
+				   | varDeclaration
 				   | statement ;
+
+funcDeclaration 	-> "fun" function ;
+
+function 		-> IDENTIFIER "(" parameters? ")" block ;
+
+parameters 		-> IDENTIFIER ( "," IDENTIFIER )* ;
 
 varDeclaration  -> "var" IDENTIFIER ( "=" expression )? ";" ;
 
@@ -26,6 +33,7 @@ statement 		-> exprStatement
 				   | forStatement
 				   | ifStatement
 				   | printStatement
+				   | returnStatement
 				   | whileStatement
 				   | block ;
 
@@ -40,6 +48,8 @@ ifStatement 	-> "if" "(" expression ")" statement
 				   ( "else" statement)? ;
 
 printStatement  -> "print" expression ";" ;
+
+returnStatement  -> "return" expression? ";" ;
 
 whileStatement 	-> "while" "(" expression ")" statement ;
 
@@ -73,8 +83,12 @@ term 			-> factor ( ("-" | "+") factor )* ;
 factor 			-> unary ( ("/" | "*") unary )* ;
 
 # Right-associative, right-recursive.
-unary 			-> ("!" | "-") unary
+unary 			-> ("!" | "-") unary | call
 				   | primary;
+
+call 			-> primary ( "(" arguments? ")" )* ;
+
+arguments 		-> expression ( "," expression )* ;
 
 # Non-recursive (for literals and parenthesized expressions).
 primary 		-> NUMBER | STRING | "true" | "false" | "nil"

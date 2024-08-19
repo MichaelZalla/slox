@@ -101,20 +101,26 @@ class Lox {
 
 		for statement in statements {
 			switch statement {
+				case .functionDeclaration(let name, let params, _):
+					print("[Debug] Function: \(name.lexeme) (\(params.count) params)")
+					break
 				case .variableDeclaration(let token, let initialValue):
-					print("[Debug] Declaration: \(token.lexeme) = \(initialValue?.parenthesize() ?? "nil")")
+					print("[Debug] Declaration: \(token.lexeme) = \(try initialValue?.parenthesize() ?? "nil")")
 					break
 				case .expression(let expr):
-					print("[Debug] Expression: \(expr.parenthesize())")
+					print("[Debug] Expression: \(try expr.parenthesize())")
 					break
 				case .branchingIf(let condition, _, _):
-					print("[Debug] If: \(condition.parenthesize())")
+					print("[Debug] If: \(try condition.parenthesize())")
 					break
 				case .branchingWhile(let condition, _):
-					print("[Debug] While: \(condition.parenthesize())")
+					print("[Debug] While: \(try condition.parenthesize())")
 					break
 				case .print(let expr):
-					print("[Debug] Print: \(expr.parenthesize())")
+					print("[Debug] Print: \(try expr.parenthesize())")
+					break
+				case .ret(_, let value):
+					print("[Debug] Return (value=\(String(describing: value)))")
 					break
 				case .block(let statements):
 					print("[Debug] Block (\(statements.count) statements)")
@@ -149,6 +155,12 @@ class Lox {
 			print(message)
 			break
 		case .undefinedVariable(_, let message):
+			print(message)
+			break
+		case .expressionNotCallable(_, let message):
+			print(message)
+			break
+		case .invalidArgumentCount(_, let message):
 			print(message)
 			break
 		}

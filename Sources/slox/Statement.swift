@@ -1,5 +1,8 @@
 indirect
 enum Statement {
+	// A function name, a list of parameters, and a function body.
+	case functionDeclaration(Token, [Token], [Statement])
+
 	// An identifier, and an optional initializer.
 	case variableDeclaration(Token, Expression?)
 
@@ -15,5 +18,9 @@ enum Statement {
 	// An expression to evaluate and print.
 	case print(Expression)
 
+	// The `return` keyword token, followed by the (optional) return expression.
+	case ret(Token, Expression?)
+
+	// A set of statements to execute sequentially.
 	case block([Statement])
 }

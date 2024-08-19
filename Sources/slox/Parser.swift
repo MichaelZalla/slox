@@ -1,6 +1,8 @@
 struct ParseError: Error {}
 
 struct Parser {
+	static let maxParameterCount = 255
+
 	let tokens: [Token]
 
 	var current: Int = 0
@@ -27,6 +29,10 @@ struct Parser {
 
 	private mutating func declaration() throws -> Statement? {
 		do {
+			if match(.FUN) {
+				return try functionDeclaration(kind: .function)
+			}
+
 			if match(.VAR) {
 				return try variableDeclaration()
 			}
@@ -37,6 +43,40 @@ struct Parser {
 
 			return nil
 		}
+	}
+
+	private mutating func functionDeclaration(
+		kind: LoxCallableKind) throws -> Statement
+	{
+		let name = try consume(type: .identifier, message: "Expect \(kind) name.")
+
+		try consume(type: .leftParen, message: "Expect '(' after \(kind) name.")
+
+		var params: [Token] = []
+
+		if !check(.rightParen) {
+			repeat {
+				// Note: We use a >= check as the callee may expect `self` as
+				// the first argument in the call.
+				if params.count >= Self.maxParameterCount {
+					Self.error(
+						token: peek(),
+						message: "Reached maximum number of \(kind) parameters (\(Self.maxParameterCount))")
+				}
+
+				params.append(
+					try consume(type: .identifier, message: "Expected parameter name.")
+				)
+			} while(match(.comma))
+		}
+
+		try consume(type: .rightParen, message: "Expect ')' after \(kind) parameters.")
+
+		try consume(type: .leftBrace, message: "Expect '{' after \(kind) signature.")
+
+		let body: [Statement] = try block()
+
+		return .functionDeclaration(name, params, body)
 	}
 
 	private mutating func variableDeclaration() throws -> Statement {
@@ -65,6 +105,10 @@ struct Parser {
 
 		if match(.PRINT) {
 			return try printStatement()
+		}
+
+		if match(.RETURN) {
+			return try returnStatement()
 		}
 
 		if match(.WHILE) {
@@ -189,6 +233,20 @@ struct Parser {
 		try consume(type: .semicolon, message: "Expect ';' after print value.")
 
 		return Statement.print(value)
+	}
+
+	private mutating func returnStatement() throws -> Statement {
+		let keyword = previous()
+
+		var value: Expression? = nil
+
+		if !check(.semicolon) {
+			value = try expression()
+		}
+
+		try consume(type: .semicolon, message: "Expect ';' after return value.")
+
+		return .ret(keyword, value)
 	}
 
 	private mutating func expressionStatement() throws -> Statement {
@@ -418,7 +476,46 @@ struct Parser {
 			return .unary(op, rhs)
 		}
 
-		return try primary()
+		return try call()
+	}
+
+	private mutating func call() throws -> Expression {
+		// call -> primary ( "(" arguments? ")" )* ;
+		// arguments -> expression ( "," expression )* ;
+
+		var expr = try primary()
+
+		while match(.leftParen) {
+			expr = try finishCall(expr)
+		}
+
+		return expr
+	}
+
+	private mutating func finishCall(_ callee: Expression) throws -> Expression {
+		var arguments: [Expression] = []
+
+		if !check(.rightParen) {
+			repeat {
+				// Note: We use a >= check as the callee may expect `self` as
+				// the first argument in the call.
+				if arguments.count >= Self.maxParameterCount {
+					// Reports an error (with respect to the language's
+					// specification), but doesn't throw it. Our parser can still
+					// continue from this point in the token stream.
+
+					Self.error(
+						token: peek(),
+						message: "Reached maximum number of function arguments (\(Self.maxParameterCount))")
+				}
+				arguments.append(try expression())
+			} while(match(.comma))
+		}
+
+		let paren = try consume(
+			type: .rightParen, message: "Expect ')' aafter arguments.")
+
+		return .call(callee, paren, arguments)
 	}
 
 	/// Consumes the next primary expression in the token stream.

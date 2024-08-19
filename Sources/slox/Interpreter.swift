@@ -12,10 +12,27 @@ enum RuntimeError: Error {
 
 	// The referenced identifier (name), and an error message.
 	case undefinedVariable(String, String)
+
+	// The token associated with the opening parenthesis, and an error message.
+	case expressionNotCallable(Token, String)
+
+	// The token associated with the opening parenthesis, and an error message.
+	case invalidArgumentCount(Token, String)
+}
+
+struct Return: Error {
+	let value: LoxValue
 }
 
 struct Interpreter {
-	var environment = Environment()
+	var globals = Environment()
+	var environment: Environment
+
+	init() {
+		self.environment = self.globals
+
+		self.globals.define(name: "clock", value: NativeFunctionClock())
+	}
 
 	mutating func interpret(_ statements: [Statement]) throws {
 		do {
@@ -31,6 +48,10 @@ struct Interpreter {
 
 	mutating func execute(_ statement: Statement) throws {
 		switch statement {
+		case .functionDeclaration(let name, let params, let body):
+			try visitFunctionDeclaration(name, params: params, body: body)
+
+			return
 		case .variableDeclaration(let token, let expr):
 			try visitVariableDeclaration(token, expr)
 
@@ -45,6 +66,10 @@ struct Interpreter {
 			return
 		case .print(let expr):
 			try visitPrintStatement(expr)
+
+			return
+		case .ret(_, let value):
+			try visitReturnStatement(value)
 
 			return
 		case .branchingWhile(let condition, let body):
@@ -79,6 +104,20 @@ struct Interpreter {
 		}
 
 		return String(describing: value!)
+	}
+
+	private mutating func visitFunctionDeclaration(
+		_ name: Token,
+		params: [Token],
+		body: [Statement]) throws
+	{
+		let function = LoxFunction(
+			closure: environment,
+			name: name,
+			params: params,
+			body: body)
+
+		environment.define(name: function.name.lexeme, value: function)
 	}
 
 	private mutating func visitVariableDeclaration(
@@ -125,11 +164,21 @@ struct Interpreter {
 		print(stringify(value))
 	}
 
+	private mutating func visitReturnStatement(_ value: Expression?) throws {
+		var returnValue: LoxValue = nil
+
+		if let value = value {
+			returnValue = try evaluate(value)
+		}
+
+		throw Return(value: returnValue)
+	}
+
 	private mutating func visitBlockStatement(_ statements: [Statement]) throws {
 		try executeBlock(statements, environment: Environment(from: environment))
 	}
 
-	private mutating func executeBlock(
+	mutating func executeBlock(
 		_ statements: [Statement],
 		environment: Environment) throws
 	{
@@ -146,7 +195,7 @@ struct Interpreter {
 				try execute(statement)
 			}
 		} catch {
-			// Do nothing.
+			throw error
 		}
 	}
 
@@ -258,6 +307,35 @@ struct Interpreter {
 		case .variable(let identifier):
 			return try environment.get(name: identifier.lexeme)
 
+		case .call(let callee, let paren, let arguments):
+			// Typically, the callee expression will just be an identifier;
+			// however, our parser can evaluate more flexible expressions.
+			let callee = try evaluate(callee)
+
+			var argValues: [Any?] = []
+
+			for arg in arguments {
+				argValues.append(try evaluate(arg))
+			}
+
+			guard let callee = callee else {
+				throw RuntimeError.expressionNotCallable(
+					paren, "Nil is not callable.")
+			}
+
+			if let function = callee as? LoxCallable {
+				if arguments.count != function.arity {
+					throw RuntimeError.invalidArgumentCount(
+						paren,
+						"Function expects \(function.arity) arguments (received \(arguments.count)).")
+				}
+
+				// Note that, here, we pass `argValues` rather than `args`.
+				return try function.call(interpreter: &self, args: argValues)
+			} else {
+				throw RuntimeError.expressionNotCallable(
+					paren, "Only functions and classes may be called.")
+			}
 		}
 	}
 
