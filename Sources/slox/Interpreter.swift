@@ -24,14 +24,25 @@ struct Return: Error {
 	let value: LoxValue
 }
 
+class LocalsContainer {
+	var locals: [Expression: Int] = [:]
+}
+
 struct Interpreter {
 	var globals = Environment()
+
+	var lc = LocalsContainer()
+
 	var environment: Environment
 
 	init() {
 		self.environment = self.globals
 
 		self.globals.define(name: "clock", value: NativeFunctionClock())
+	}
+
+	mutating func resolve(_ expr: Expression, atDepth depth: Int) {
+		lc.locals[expr] = depth
 	}
 
 	mutating func interpret(_ statements: [Statement]) throws {
@@ -299,13 +310,19 @@ struct Interpreter {
 		case .assignment(let identifier, let newValue):
 			let value = try evaluate(newValue)
 
-			try environment.assign(name: identifier.lexeme, value: value)
+			let distance = lc.locals[expr]
+
+			if let distance = distance {
+				try environment.assignAtDistance(distance, name: identifier.lexeme, value: value)
+			} else {
+				try globals.assign(name: identifier.lexeme, value: value)
+			}
 
 			// Note that assignments evaluate to their assigned value.
 			return value
 
 		case .variable(let identifier):
-			return try environment.get(name: identifier.lexeme)
+			return try lookUpVariable(identifier, expr: expr)
 
 		case .call(let callee, let paren, let arguments):
 			// Typically, the callee expression will just be an identifier;
@@ -336,6 +353,24 @@ struct Interpreter {
 				throw RuntimeError.expressionNotCallable(
 					paren, "Only functions and classes may be called.")
 			}
+		}
+	}
+
+	private func lookUpVariable(_ name: Token, expr: Expression) throws -> Any? {
+		let distance = lc.locals[expr]
+
+		let storedValue: LoxValue
+
+		if let distance = distance {
+			storedValue = try environment.getAtDistance(distance, name: name.lexeme)
+		} else {
+			storedValue = try globals.get(name: name.lexeme)
+		}
+
+		if let value = storedValue {
+			return value
+		} else {
+			return nil
 		}
 	}
 

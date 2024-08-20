@@ -128,6 +128,14 @@ class Lox {
 			}
 		}
 
+		var resolver = Resolver(interpreter: interpreter)
+
+		resolver.resolve(statements)
+
+		guard !hadError else {
+			return
+		}
+
 		try interpreter.interpret(statements)
 	}
 

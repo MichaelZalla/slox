@@ -1,6 +1,35 @@
 indirect
-// expression ->	literal | unary | binary | grouping ;
-enum Expression: CustomStringConvertible {
+// expression -> literal | unary | binary | grouping ;
+enum Expression: Hashable, CustomStringConvertible {
+    func hash(into hasher: inout Hasher) {
+		switch self {
+		case .variable(let name):
+			name.hash(into: &hasher)
+			break
+		case .call(_, let token, _):
+			token.hash(into: &hasher)
+			break
+		case .assignment(let name, _):
+			name.hash(into: &hasher)
+			break
+		default:
+			fatalError()
+		}
+    }
+
+    static func == (lhs: Expression, rhs: Expression) -> Bool {
+		switch (lhs, rhs) {
+		case (.variable(let lhsName), .variable(let rhsName)):
+			return lhsName == rhsName
+		case (.call(_, let lhsToken, _), .call(_, let rhsToken, _)):
+			return lhsToken == rhsToken
+		case (.assignment(let lhsName, _), .assignment(let rhsName, _)):
+			return lhsName == rhsName
+		default:
+			return false
+		}
+    }
+
 	// literal -> NUMBER | STRING | "true" | "false" | "nil";
 	case literal(CustomStringConvertible?)
 

@@ -31,6 +31,20 @@ class Environment {
 		throw RuntimeError.undefinedVariable(name, "Undefined variable '\(name)'.")
 	}
 
+	func getAtDistance(_ distance: Int, name: String) throws -> LoxValue {
+		try ancestor(distance).get(name: name)
+	}
+
+	private func ancestor(_ distance: Int) throws -> Environment {
+		var current: Environment = self
+
+		for _ in 0..<distance {
+			current = current.enclosing!
+		}
+
+		return current
+	}
+
 	func assign(name: String, value: LoxValue) throws {
 		if values.index(forKey: name) != nil {
 			values[name] = value
@@ -43,5 +57,9 @@ class Environment {
 		}
 
 		throw RuntimeError.undefinedVariable(name, "Undefined variable '\(name)'.")
+	}
+
+	func assignAtDistance(_ distance: Int, name: String, value: LoxValue) throws {
+		try ancestor(distance).assign(name: name, value: value)
 	}
 }

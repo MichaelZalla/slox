@@ -1,28 +1,24 @@
 {
-	"configurations": [
-		{
-			"type": "lldb",
-			"request": "launch",
-			"sourceLanguages": [
-				"swift"
-			],
-			"args": [],
-			"cwd": "${workspaceFolder:slox}",
-			"name": "Debug slox",
-			"program": "${workspaceFolder:slox}/.build/debug/slox",
-			"preLaunchTask": "swift: Build Debug slox"
-		},
-		{
-			"type": "lldb",
-			"request": "launch",
-			"sourceLanguages": [
-				"swift"
-			],
-			"args": [],
-			"cwd": "${workspaceFolder:slox}",
-			"name": "Release slox",
-			"program": "${workspaceFolder:slox}/.build/release/slox",
-			"preLaunchTask": "swift: Build Release slox"
-		}
-	]
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": ["swift"],
+      "args": [],
+      "cwd": "${workspaceFolder:slox}",
+      "name": "Debug slox",
+      "program": "${workspaceFolder:slox}/.build/debug/slox",
+      "preLaunchTask": "swift: Build Debug slox"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": ["swift"],
+      "args": [],
+      "cwd": "${workspaceFolder:slox}",
+      "name": "Release slox",
+      "program": "${workspaceFolder:slox}/.build/release/slox",
+      "preLaunchTask": "swift: Build Release slox"
+    }
+  ]
 }
