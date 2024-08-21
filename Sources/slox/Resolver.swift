@@ -1,5 +1,11 @@
 enum FunctionType {
 	case function
+	case initializer
+	case method
+}
+
+enum ClassType {
+	case some
 }
 
 class ScopesConatiner {
@@ -8,7 +14,9 @@ class ScopesConatiner {
 
 struct Resolver {
 	var interpreter: Interpreter
+
 	var currentFunctionType: FunctionType? = nil
+	var currentClassType: ClassType? = nil
 
 	// A "scope stack", used for local block scopes (non-globals). Keys are
 	// variable names (as with `Environment` entries). Top-level, global
@@ -30,6 +38,10 @@ struct Resolver {
 
 	private mutating func resolve(_ statement: Statement) {
 		switch statement {
+		case .classDeclaration(let name, let methods):
+			visitClassDeclaration(name: name, methods: methods)
+
+			return
 		case .functionDeclaration(let name, let params, let body):
 			visitFunctionDeclaration(statement: statement)
 
@@ -76,6 +88,15 @@ struct Resolver {
 		case .call(_, _, _):
 			visitCallExpression(expr: expr)
 			break
+		case .get(_, _):
+			visitGetExpression(expr: expr)
+			break
+		case .set(_, _, _):
+			visitSetExpression(expr: expr)
+			break
+		case .this(_):
+			visitThisExpression(expr: expr)
+			break
 		case .grouping(_):
 			visitGroupingExpression(expr: expr)
 			break
@@ -90,7 +111,34 @@ struct Resolver {
 		}
 	}
 
-	// Visit statements.
+	// Visit declarations.
+
+	private mutating func visitClassDeclaration(name: Token, methods: [Statement]) {
+		let enclosingClassType = currentClassType
+
+		currentClassType = .some
+
+		declare(name: name)
+		define(name: name)
+
+		beginScope()
+
+		sc.scopes[sc.scopes.count - 1]["this"] = true
+
+		for method in methods {
+			guard case .functionDeclaration(let name, _, _) = method else {
+				fatalError()
+			}
+
+			let isInitializer = name.lexeme == "init"
+
+			resolveFunction(method, type: isInitializer ? .initializer : .method)
+		}
+
+		endScope()
+
+		currentClassType = enclosingClassType
+	}
 
 	private mutating func visitFunctionDeclaration(statement: Statement) {
 		guard case .functionDeclaration(let name, _, _) = statement else {
@@ -117,6 +165,8 @@ struct Resolver {
 
 		define(name: name)
 	}
+
+	// Visit statements.
 
 	private mutating func visitExpressionStatement(statement: Statement) {
 		guard case .expression(let expr) = statement else {
@@ -163,6 +213,12 @@ struct Resolver {
 		}
 
 		if let value = value {
+			if case .initializer = currentFunctionType {
+				Lox.error(
+					token: keyword,
+					message: "Class initializers may not return a value.")
+			}
+
 			resolve(value)
 		}
 	}
@@ -243,6 +299,39 @@ struct Resolver {
 		for arg in args {
 			resolve(arg)
 		}
+	}
+
+	private mutating func visitGetExpression(expr: Expression) {
+		guard case .get(let object, let name) = expr else {
+			fatalError()
+		}
+
+		resolve(object)
+	}
+
+	private mutating func visitSetExpression(expr: Expression) {
+		guard case .set(let object, let name, let value) = expr else {
+			fatalError()
+		}
+
+		resolve(value)
+		resolve(object)
+	}
+
+	private mutating func visitThisExpression(expr: Expression) {
+		guard case .this(let keyword) = expr else {
+			fatalError()
+		}
+
+		if currentClassType == nil {
+			Lox.error(
+				line: keyword.line,
+				message: "Use of reserved `this` keyword outside of `class` context.")
+
+			return
+		}
+
+		resolveLocal(name: keyword, expr: expr)
 	}
 
 	private mutating func visitGroupingExpression(expr: Expression) {

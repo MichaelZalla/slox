@@ -6,6 +6,9 @@ enum Expression: Hashable, CustomStringConvertible {
 		case .variable(let name):
 			name.hash(into: &hasher)
 			break
+		case .this(let keyword):
+			keyword.hash(into: &hasher)
+			break
 		case .call(_, let token, _):
 			token.hash(into: &hasher)
 			break
@@ -21,6 +24,8 @@ enum Expression: Hashable, CustomStringConvertible {
 		switch (lhs, rhs) {
 		case (.variable(let lhsName), .variable(let rhsName)):
 			return lhsName == rhsName
+		case (.this(let lhsKeyword), .this(let rhsKeyword)):
+			return lhsKeyword == rhsKeyword
 		case (.call(_, let lhsToken, _), .call(_, let rhsToken, _)):
 			return lhsToken == rhsToken
 		case (.assignment(let lhsName, _), .assignment(let rhsName, _)):
@@ -52,9 +57,18 @@ enum Expression: Hashable, CustomStringConvertible {
 	// IDENTIFIER
 	case variable(Token)
 
-	// call -> primary ( "(" arguments? ")" )* ;
-	//   arguments -> expression ( "," expression )* ;
+	// call -> primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
+	// arguments -> expression ( "," expression )* ;
 	case call(Expression, Token, [Expression])
+
+	// call -> primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
+	case get(Expression, Token)
+
+	// assignment 		-> ( call "." )? IDENTIFIER "=" assignment ;
+	// 				   	   | logic_or ;
+	case set(Expression, Token, Expression)
+
+	case this(Token)
 
 	func parenthesize() throws -> String {
 		switch self {
@@ -85,6 +99,15 @@ enum Expression: Hashable, CustomStringConvertible {
 
 			case .call(let callee, _, let args):
 				return try Self.parenthesized(name: "call", parts: callee, args)
+
+			case .get(let object, let name):
+				return try Self.parenthesized(name: "get", parts: object, name)
+
+			case .set(let object, let name, let value):
+				return try Self.parenthesized(name: "set", parts: object, name, value)
+
+			case .this(let keyword):
+				return try Self.parenthesized(name: "this", parts: keyword)
 		}
 	}
 
@@ -143,6 +166,12 @@ enum Expression: Hashable, CustomStringConvertible {
 				.joined(separator: ", ")
 
 			return "Call(\(callee)(\(argsCommaSeparated)))"
+		case .get(let object, let name):
+			return "Get(\(object).\(name))"
+		case .set(let object, let name, let value):
+			return "Set(\(object).\(name) = \(value))"
+		case .this(let keyword):
+			return "This(\(keyword.lexeme))"
 		}
 	}
 }

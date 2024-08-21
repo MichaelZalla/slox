@@ -18,16 +18,31 @@ class LoxFunction: LoxCallable {
 	let name: Token
 	let params: [Token]
 	let body: [Statement]
+	let isInitializer: Bool
 
 	var arity: Int {
 		params.count
 	}
 
-	init(closure: Environment, name: Token, params: [Token], body: [Statement]) {
+	init(closure: Environment, name: Token, params: [Token], body: [Statement], isInitializer: Bool) {
 		self.closure = closure
 		self.name = name
 		self.params = params
 		self.body = body
+		self.isInitializer = isInitializer
+	}
+
+	func bind(instance: LoxInstance) -> LoxFunction {
+		let environment = Environment(from: closure)
+
+		environment.define(name: "this", value: instance)
+
+		return LoxFunction(
+			closure: environment,
+			name: name,
+			params: params,
+			body: body,
+			isInitializer: isInitializer)
 	}
 
     func call(interpreter: inout Interpreter, args: [Any?]) throws -> Any? {
@@ -49,10 +64,20 @@ class LoxFunction: LoxCallable {
 			try interpreter.executeBlock(body, environment: callEnvironment)
 		} catch {
 			if let ret = error as? Return {
+				if isInitializer {
+					return try closure.get(name: "this")
+				}
+
 				return ret.value
 			}
 
 			throw error
+		}
+
+		if isInitializer {
+			let this = try closure.get(name: "this")
+
+			return this
 		}
 
 		return nil

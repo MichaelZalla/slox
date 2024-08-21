@@ -13,8 +13,15 @@ enum RuntimeError: Error {
 	// The referenced identifier (name), and an error message.
 	case undefinedVariable(String, String)
 
+	// The referenced property (name), and an error message.
+	case undefinedProperty(Token, String)
+
 	// The token associated with the opening parenthesis, and an error message.
 	case expressionNotCallable(Token, String)
+
+	// The token associated with the (invalid) property (get-expression)
+	// reference, and an error message.
+	case invalidObjectReference(Token, String)
 
 	// The token associated with the opening parenthesis, and an error message.
 	case invalidArgumentCount(Token, String)
@@ -59,6 +66,10 @@ struct Interpreter {
 
 	mutating func execute(_ statement: Statement) throws {
 		switch statement {
+		case .classDeclaration(let name, let methods):
+			try visitClassDeclaration(name: name, methods: methods)
+
+			break
 		case .functionDeclaration(let name, let params, let body):
 			try visitFunctionDeclaration(name, params: params, body: body)
 
@@ -117,6 +128,31 @@ struct Interpreter {
 		return String(describing: value!)
 	}
 
+	// Visit declarations.
+
+	private mutating func visitClassDeclaration(name: Token, methods: [Statement]) throws {
+		environment.define(name: name.lexeme, value: nil)
+
+		var methodsMap: [String: LoxFunction] = [:]
+
+		for method in methods {
+			guard case .functionDeclaration(let name, let params, let body) = method else {
+				fatalError("Ooops!")
+			}
+
+			methodsMap[name.lexeme] = LoxFunction(
+				closure: environment,
+				name: name,
+				params: params,
+				body: body,
+				isInitializer: name.lexeme == "init")
+		}
+
+		let lc = LoxClass(name: name.lexeme, methods: methodsMap)
+
+		try environment.assign(name: name.lexeme, value: lc)
+	}
+
 	private mutating func visitFunctionDeclaration(
 		_ name: Token,
 		params: [Token],
@@ -126,7 +162,8 @@ struct Interpreter {
 			closure: environment,
 			name: name,
 			params: params,
-			body: body)
+			body: body,
+			isInitializer: false)
 
 		environment.define(name: function.name.lexeme, value: function)
 	}
@@ -143,6 +180,8 @@ struct Interpreter {
 
 		environment.define(name: name.lexeme, value: value)
 	}
+
+	// Visit statements.
 
 	private mutating func visitExpressionStatement(_ expr: Expression) throws {
 		try evaluate(expr)
@@ -353,6 +392,33 @@ struct Interpreter {
 				throw RuntimeError.expressionNotCallable(
 					paren, "Only functions and classes may be called.")
 			}
+
+		case .get(let object, let name):
+			let obj = try evaluate(object)
+
+			guard let instance = obj as? LoxInstance else {
+				throw RuntimeError.invalidObjectReference(
+					name, "Only instances have properties.")
+			}
+
+			return try instance.get(name: name)
+
+		case .set(let object, let name, let value):
+			let obj = try evaluate(object)
+
+			guard let instance = obj as? LoxInstance else {
+				throw RuntimeError.invalidObjectReference(
+					name, "Only instances have fields.")
+			}
+
+			let value = try evaluate(value)
+
+			instance.set(name: name, value: value)
+
+			return value
+
+		case .this(let keyword):
+			return try lookUpVariable(keyword, expr: expr)
 		}
 	}
 

@@ -13,17 +13,20 @@ program 		-> declaration* EOF ;
 # Declaration rules.
 #
 
-declaration 	-> funcDeclaration
-				   | varDeclaration
-				   | statement ;
+declaration 		-> classDeclaration
+					   | funcDeclaration
+					   | varDeclaration
+					   | statement ;
+
+classDeclaration 	-> "class" IDENTIFIER "{" function* "}" ;
 
 funcDeclaration 	-> "fun" function ;
 
-function 		-> IDENTIFIER "(" parameters? ")" block ;
+function 			-> IDENTIFIER "(" parameters? ")" block ;
 
-parameters 		-> IDENTIFIER ( "," IDENTIFIER )* ;
+parameters 			-> IDENTIFIER ( "," IDENTIFIER )* ;
 
-varDeclaration  -> "var" IDENTIFIER ( "=" expression )? ";" ;
+varDeclaration  	-> "var" IDENTIFIER ( "=" expression )? ";" ;
 
 #
 # Statement rules.
@@ -63,7 +66,7 @@ block 			-> "{" declaration* "}"
 expression 		-> assignment ;
 
 # Right-associative, right-recursive.
-assignment 		-> IDENTIFIER "=" assignment ;
+assignment 		-> ( call "." )? IDENTIFIER "=" assignment ;
 				   | logic_or ;
 
 logic_or 		-> logic_and ( "or" logic_and )* ;
@@ -86,7 +89,7 @@ factor 			-> unary ( ("/" | "*") unary )* ;
 unary 			-> ("!" | "-") unary | call
 				   | primary;
 
-call 			-> primary ( "(" arguments? ")" )* ;
+call 			-> primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 
 arguments 		-> expression ( "," expression )* ;
 

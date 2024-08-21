@@ -29,6 +29,10 @@ struct Parser {
 
 	private mutating func declaration() throws -> Statement? {
 		do {
+			if match(.CLASS) {
+				return try classDeclaration()
+			}
+
 			if match(.FUN) {
 				return try functionDeclaration(kind: .function)
 			}
@@ -43,6 +47,24 @@ struct Parser {
 
 			return nil
 		}
+	}
+
+	private mutating func classDeclaration() throws -> Statement {
+		let name = try consume(type: .identifier, message: "Expect class name.")
+
+		try consume(type: .leftBrace, message: "Expect '{' before class body.")
+
+		var methods: [Statement] = []
+
+		while !check(.rightBrace) && !isAtEnd() {
+			let method = try functionDeclaration(kind: .method)
+
+			methods.append(method)
+		}
+
+		try consume(type: .rightBrace, message: "Expect '}' after class body.")
+
+		return .classDeclaration(name, methods)
 	}
 
 	private mutating func functionDeclaration(
@@ -297,10 +319,8 @@ struct Parser {
 	private mutating func assignment() throws -> Expression {
 		//
 		// 	# Right-recursive, right-associative.
-		// 	assignment -> IDENTIFIER "=" assignment ;
-		// 				  | equality ;
-		//
-
+		// assignment 		-> ( call "." )? IDENTIFIER "=" assignment ;
+		// 				   	   | logic_or ;
 		let expr = try logicalOr()
 
 		if match(.equal) {
@@ -308,8 +328,9 @@ struct Parser {
 			let value = try assignment()
 
 			if case .variable(let name) = expr {
-				// Converts the r-value expression into an l-value (reference).
 				return Expression.assignment(name, value)
+			} else if case .get(let object, let name) = expr {
+				return Expression.set(object, name, value)
 			}
 
 			// Note: We report this error, but we don't throw it; the parser
@@ -485,8 +506,16 @@ struct Parser {
 
 		var expr = try primary()
 
-		while match(.leftParen) {
-			expr = try finishCall(expr)
+		while true {
+			if match(.leftParen) {
+				expr = try finishCall(expr)
+			} else if match(.dot) {
+				let name = try consume(type: .identifier, message: "Expect property name after '.'.")
+
+				expr = .get(expr, name)
+			} else {
+				break
+			}
 		}
 
 		return expr
@@ -539,6 +568,10 @@ struct Parser {
 
 		if match(.number, .string) {
 			return .literal(previous().literal)
+		}
+
+		if match(.THIS) {
+			return .this(previous())
 		}
 
 		if match(.identifier) {

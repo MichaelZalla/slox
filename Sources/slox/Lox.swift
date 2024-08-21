@@ -101,29 +101,41 @@ class Lox {
 
 		for statement in statements {
 			switch statement {
+				case .classDeclaration(let name, let methods):
+					print("[Debug] Class declaration:")
+					print("  \(name.lexeme) (\(methods.count) methods)")
+					break
 				case .functionDeclaration(let name, let params, _):
-					print("[Debug] Function: \(name.lexeme) (\(params.count) params)")
+					print("[Debug] Function declaration:")
+					print("  \(name.lexeme) (\(params.count) params)")
 					break
 				case .variableDeclaration(let token, let initialValue):
-					print("[Debug] Declaration: \(token.lexeme) = \(try initialValue?.parenthesize() ?? "nil")")
+					print("[Debug] Variable declaration:")
+					print("  \(token.lexeme) = \(try initialValue?.parenthesize() ?? "nil")")
 					break
 				case .expression(let expr):
-					print("[Debug] Expression: \(try expr.parenthesize())")
+					print("[Debug] Expression statement:")
+					print("  \(try expr.parenthesize())")
 					break
 				case .branchingIf(let condition, _, _):
-					print("[Debug] If: \(try condition.parenthesize())")
+					print("[Debug] If statement:")
+					print("  \(try condition.parenthesize())")
 					break
 				case .branchingWhile(let condition, _):
-					print("[Debug] While: \(try condition.parenthesize())")
+					print("[Debug] While statement:")
+					print("  \(try condition.parenthesize())")
 					break
 				case .print(let expr):
-					print("[Debug] Print: \(try expr.parenthesize())")
+					print("[Debug] Print statement:")
+					print("  print \(try expr.parenthesize())")
 					break
 				case .ret(_, let value):
-					print("[Debug] Return (value=\(String(describing: value)))")
+					print("[Debug] Return statement:")
+					print("  return \(String(describing: value))")
 					break
 				case .block(let statements):
-					print("[Debug] Block (\(statements.count) statements)")
+					print("[Debug] Block")
+					print("  (\(statements.count) statements)")
 					break
 			}
 		}
@@ -153,23 +165,21 @@ class Lox {
 
 	static func runtimeError(_ error: RuntimeError) {
 		switch error {
-		case .invalidStatement(let message):
-			print(message)
-			break
-		case .invalidOperands(let token, let message):
-			print(message + "\n[line \(token.line)]")
-			break
-		case .unexpectedType(let message):
-			print(message)
+		case .invalidOperands(let token, let message),
+			.undefinedProperty(let token, let message),
+			.expressionNotCallable(let token, let message),
+			.invalidArgumentCount(let token, let message),
+			.invalidObjectReference(let token, let message):
+			print("[line \(token.line)] \(message)")
+
 			break
 		case .undefinedVariable(_, let message):
+			fallthrough
+		case .invalidStatement(let message):
+			fallthrough
+		case .unexpectedType(let message):
 			print(message)
-			break
-		case .expressionNotCallable(_, let message):
-			print(message)
-			break
-		case .invalidArgumentCount(_, let message):
-			print(message)
+
 			break
 		}
 
