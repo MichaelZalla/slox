@@ -1,7 +1,8 @@
 indirect
 enum Statement {
-	// A class name, followed by a list of class methods (as functions).
-	case classDeclaration(Token, [Statement])
+	// A class name, followed by an optional superClass, followed by a list
+	// of class methods (as functions).
+	case classDeclaration(Token, Expression?, [Statement])
 
 	// A function name, a list of parameters, and a function body.
 	case functionDeclaration(Token, [Token], [Statement])

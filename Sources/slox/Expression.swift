@@ -6,6 +6,10 @@ enum Expression: Hashable, CustomStringConvertible {
 		case .variable(let name):
 			name.hash(into: &hasher)
 			break
+		case .superMethod(let keyword, let methodName):
+			keyword.hash(into: &hasher)
+			methodName.hash(into: &hasher)
+			break
 		case .this(let keyword):
 			keyword.hash(into: &hasher)
 			break
@@ -24,6 +28,11 @@ enum Expression: Hashable, CustomStringConvertible {
 		switch (lhs, rhs) {
 		case (.variable(let lhsName), .variable(let rhsName)):
 			return lhsName == rhsName
+		case (
+			.superMethod(let lhsKeyword, let lhsMethodName),
+			.superMethod(let rhsKeyword, let rhsMethodName)
+		):
+			return lhsKeyword == rhsKeyword && lhsMethodName == rhsMethodName
 		case (.this(let lhsKeyword), .this(let rhsKeyword)):
 			return lhsKeyword == rhsKeyword
 		case (.call(_, let lhsToken, _), .call(_, let rhsToken, _)):
@@ -68,6 +77,8 @@ enum Expression: Hashable, CustomStringConvertible {
 	// 				   	   | logic_or ;
 	case set(Expression, Token, Expression)
 
+	case superMethod(Token, Token)
+
 	case this(Token)
 
 	func parenthesize() throws -> String {
@@ -105,6 +116,9 @@ enum Expression: Hashable, CustomStringConvertible {
 
 			case .set(let object, let name, let value):
 				return try Self.parenthesized(name: "set", parts: object, name, value)
+
+			case .superMethod(let keyword, let methodName):
+				return try Self.parenthesized(name: "super", parts: keyword, methodName)
 
 			case .this(let keyword):
 				return try Self.parenthesized(name: "this", parts: keyword)
@@ -170,6 +184,8 @@ enum Expression: Hashable, CustomStringConvertible {
 			return "Get(\(object).\(name))"
 		case .set(let object, let name, let value):
 			return "Set(\(object).\(name) = \(value))"
+		case .superMethod(let keyword, let methodName):
+			return "Super(\(keyword.lexeme).\(methodName.lexeme))"
 		case .this(let keyword):
 			return "This(\(keyword.lexeme))"
 		}

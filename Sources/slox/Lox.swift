@@ -101,9 +101,18 @@ class Lox {
 
 		for statement in statements {
 			switch statement {
-				case .classDeclaration(let name, let methods):
+				case .classDeclaration(let name, let superClass, let methods):
 					print("[Debug] Class declaration:")
-					print("  \(name.lexeme) (\(methods.count) methods)")
+
+					var superClassName: String? = nil
+
+					if let superClass = superClass {
+						if case .variable(let name) = superClass {
+							superClassName = " (inherits from \(name.lexeme)) "
+						}
+					}
+
+					print("  \(name.lexeme) \(superClassName ?? "")(\(methods.count) methods)")
 					break
 				case .functionDeclaration(let name, let params, _):
 					print("[Debug] Function declaration:")

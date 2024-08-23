@@ -5,7 +5,8 @@ enum FunctionType {
 }
 
 enum ClassType {
-	case some
+	case baseClass
+	case subClass
 }
 
 class ScopesConatiner {
@@ -38,8 +39,8 @@ struct Resolver {
 
 	private mutating func resolve(_ statement: Statement) {
 		switch statement {
-		case .classDeclaration(let name, let methods):
-			visitClassDeclaration(name: name, methods: methods)
+		case .classDeclaration(let name, let superClass, let methods):
+			visitClassDeclaration(name: name, superClass: superClass, methods: methods)
 
 			return
 		case .functionDeclaration(let name, let params, let body):
@@ -94,6 +95,9 @@ struct Resolver {
 		case .set(_, _, _):
 			visitSetExpression(expr: expr)
 			break
+		case .superMethod(_, _):
+			visitSuperExpression(expr: expr)
+			break
 		case .this(_):
 			visitThisExpression(expr: expr)
 			break
@@ -113,13 +117,31 @@ struct Resolver {
 
 	// Visit declarations.
 
-	private mutating func visitClassDeclaration(name: Token, methods: [Statement]) {
+	private mutating func visitClassDeclaration(name: Token, superClass: Expression?, methods: [Statement]) {
 		let enclosingClassType = currentClassType
 
-		currentClassType = .some
+		currentClassType = .baseClass
 
 		declare(name: name)
 		define(name: name)
+
+		if let superClass = superClass {
+			if case .variable(let superClassName) = superClass {
+				if superClassName.lexeme == name.lexeme {
+					Lox.error(
+						token: superClassName,
+						message: "A class can't inherit from itself.")
+				}
+			}
+
+			currentClassType = .subClass
+
+			resolve(superClass)
+
+			beginScope()
+
+			sc.scopes[sc.scopes.count - 1]["super"] = true
+		}
 
 		beginScope()
 
@@ -136,6 +158,10 @@ struct Resolver {
 		}
 
 		endScope()
+
+		if superClass != nil {
+			endScope()
+		}
 
 		currentClassType = enclosingClassType
 	}
@@ -316,6 +342,22 @@ struct Resolver {
 
 		resolve(value)
 		resolve(object)
+	}
+
+	private mutating func visitSuperExpression(expr: Expression) {
+		guard case .superMethod(let keyword, let methodName) = expr else {
+			fatalError()
+		}
+
+		if currentClassType == nil {
+			Lox.error(line: keyword.line, message: "Can't use `super` outside of a class.")
+		}
+
+		if case .baseClass = currentClassType {
+			Lox.error(line: keyword.line, message: "Can't use `super` in the methods of a base class.")
+		}
+
+		resolveLocal(name: keyword, expr: expr)
 	}
 
 	private mutating func visitThisExpression(expr: Expression) {

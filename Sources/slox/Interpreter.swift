@@ -66,8 +66,8 @@ struct Interpreter {
 
 	mutating func execute(_ statement: Statement) throws {
 		switch statement {
-		case .classDeclaration(let name, let methods):
-			try visitClassDeclaration(name: name, methods: methods)
+		case .classDeclaration(let name, let superClass, let methods):
+			try visitClassDeclaration(name: name, superClass: superClass, methods: methods)
 
 			break
 		case .functionDeclaration(let name, let params, let body):
@@ -130,8 +130,30 @@ struct Interpreter {
 
 	// Visit declarations.
 
-	private mutating func visitClassDeclaration(name: Token, methods: [Statement]) throws {
+	private mutating func visitClassDeclaration(
+		name: Token,
+		superClass superClassExpr: Expression?,
+		methods: [Statement]) throws
+	{
+		var superClassLoxClass: LoxClass? = nil
+
+		if let superClassExpr = superClassExpr {
+			let superClassLoxValue = try evaluate(superClassExpr)
+
+			if let lc = superClassLoxValue as? LoxClass {
+				superClassLoxClass = lc
+			} else {
+				throw RuntimeError.unexpectedType("Superclass must be a class.")
+			}
+		}
+
 		environment.define(name: name.lexeme, value: nil)
+
+		if let superClassLoxClass = superClassLoxClass {
+			environment = Environment(from: environment)
+
+			environment.define(name: "super", value: superClassLoxClass)
+		}
 
 		var methodsMap: [String: LoxFunction] = [:]
 
@@ -148,7 +170,11 @@ struct Interpreter {
 				isInitializer: name.lexeme == "init")
 		}
 
-		let lc = LoxClass(name: name.lexeme, methods: methodsMap)
+		if superClassLoxClass != nil {
+			environment = environment.enclosing!
+		}
+
+		let lc = LoxClass(name: name.lexeme, superClass: superClassLoxClass, methods: methodsMap)
 
 		try environment.assign(name: name.lexeme, value: lc)
 	}
@@ -416,6 +442,37 @@ struct Interpreter {
 			instance.set(name: name, value: value)
 
 			return value
+
+		case .superMethod(let keyword, let methodName):
+			let distance = lc.locals[expr]
+
+			guard let distance = distance else {
+				fatalError()
+			}
+
+			let superClass = try environment
+				.getAtDistance(distance, name: "super")
+
+			guard let superClass = superClass as? LoxClass else {
+				fatalError()
+			}
+
+			let instance = try environment
+				.getAtDistance(distance - 1, name: "this")
+
+			guard let instance = instance as? LoxInstance else {
+				fatalError()
+			}
+
+			let method = superClass.findMethod(name: methodName.lexeme)
+
+			guard let method = method else {
+				throw RuntimeError.undefinedProperty(
+					methodName,
+					"Undefined property '\(methodName.lexeme)'.")
+			}
+
+			return method.bind(instance: instance)
 
 		case .this(let keyword):
 			return try lookUpVariable(keyword, expr: expr)

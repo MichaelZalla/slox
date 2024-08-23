@@ -52,6 +52,16 @@ struct Parser {
 	private mutating func classDeclaration() throws -> Statement {
 		let name = try consume(type: .identifier, message: "Expect class name.")
 
+		// let superClass = match(.less) ? try primary() : nil
+
+		var superClass: Expression? = nil
+
+		if match(.less) {
+			try consume(type: .identifier, message: "Expected superClass name.")
+
+			superClass = Expression.variable(previous())
+		}
+
 		try consume(type: .leftBrace, message: "Expect '{' before class body.")
 
 		var methods: [Statement] = []
@@ -64,7 +74,7 @@ struct Parser {
 
 		try consume(type: .rightBrace, message: "Expect '}' after class body.")
 
-		return .classDeclaration(name, methods)
+		return .classDeclaration(name, superClass, methods)
 	}
 
 	private mutating func functionDeclaration(
@@ -568,6 +578,18 @@ struct Parser {
 
 		if match(.number, .string) {
 			return .literal(previous().literal)
+		}
+
+		if match(.SUPER) {
+			let keyword = previous()
+
+			try consume(type: .dot, message: "Expected '.' after 'super'.")
+
+			let methodName = try consume(
+				type: .identifier,
+				message: "Expected superclass method name.")
+
+			return .superMethod(keyword, methodName)
 		}
 
 		if match(.THIS) {

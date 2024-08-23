@@ -18,7 +18,8 @@ declaration 		-> classDeclaration
 					   | varDeclaration
 					   | statement ;
 
-classDeclaration 	-> "class" IDENTIFIER "{" function* "}" ;
+classDeclaration 	-> "class" IDENTIFIER ( "<" IDENTIFIER )?
+					   "{" function* "}" ;
 
 funcDeclaration 	-> "fun" function ;
 
@@ -96,4 +97,5 @@ arguments 		-> expression ( "," expression )* ;
 # Non-recursive (for literals and parenthesized expressions).
 primary 		-> NUMBER | STRING | "true" | "false" | "nil"
 				   | "(" expression ")"
-				   | IDENTIFIER;
+				   | IDENTIFIER
+				   | "super" "." IDENTIFIER;
